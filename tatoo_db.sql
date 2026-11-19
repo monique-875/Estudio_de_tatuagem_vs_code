@@ -54,9 +54,9 @@ INSERT INTO clientes (id_cliente, nome, cpf, telefone, email) VALUES
   (3, 'Carla Mendes', 'a134b2c35e2f614c70ada0cc3f898ab5', '(11) 97733-4455', 'carla.mendes@example.com');
 
 INSERT INTO usuarios (id_usuario, nome, email, senha) VALUES
-  (1, 'Administrador', 'admin@tattoo.com', '$2b$10$4n6CM.4Bka3WlEq/6f50aeGr8aD0BuW.34cGN44xUbrSeM5cW6p.6'),
-  (2, 'Marina Alves', 'marina@tattoo.com', '$2b$10$4n6CM.4Bka3WlEq/6f50aeGr8aD0BuW.34cGN44xUbrSeM5cW6p.6'),
-  (3, 'Rafael Costa', 'rafael@tattoo.com', '$2b$10$4n6CM.4Bka3WlEq/6f50aeGr8aD0BuW.34cGN44xUbrSeM5cW6p.6');
+  (1, 'Administrador', 'admin@tattoo.com', '$2b$10$EPjW1CRfYchIoXpJyjzxnun3W90glwyokugjLEK6AeoC/ShBoqAX2'),
+  (2, 'Marina Alves', 'marina@tattoo.com', '$2b$10$EPjW1CRfYchIoXpJyjzxnun3W90glwyokugjLEK6AeoC/ShBoqAX2'),
+  (3, 'Rafael Costa', 'rafael@tattoo.com', '$2b$10$EPjW1CRfYchIoXpJyjzxnun3W90glwyokugjLEK6AeoC/ShBoqAX2');
 
 -- Cada projeto pertence a um cliente.
 INSERT INTO projetos (id_projeto, descricao, id_cliente) VALUES
@@ -69,3 +69,7 @@ INSERT INTO sessoes (id_sessao, data_hora, id_projeto) VALUES
   (1, '2026-12-01 09:00:00', 1),
   (2, '2026-12-02 14:30:00', 2),
   (3, '2026-12-03 10:00:00', 3);
+
+UPDATE usuarios
+SET senha = '$2b$10$EPjW1CRfYchIoXpJyjzxnun3W90glwyokugjLEK6AeoC/ShBoqAX2'
+WHERE email IN ('admin@tattoo.com', 'marina@tattoo.com', 'rafael@tattoo.com');
