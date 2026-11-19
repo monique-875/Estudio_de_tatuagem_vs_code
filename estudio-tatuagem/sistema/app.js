@@ -9,7 +9,7 @@ const cookieParser = require('cookie-parser');
 const Mustache = require('mustache');
 
 require('dotenv').config({
-  path: path.join(__dirname, '..', '.env'),
+  path: path.join(__dirname, '..', '..', '.env'),
 });
 
 const app = express();
@@ -73,6 +73,22 @@ function paginaErro(res, mensagem, status = 500) {
   return res.status(status).send(
     `<p>${mensagem}</p><p><a href="/principal">Voltar</a></p>`
   );
+}
+
+async function excluirRegistro(res, tabela, colunaId, id, caminho, motivo) {
+  try {
+    await db.query(`DELETE FROM ${tabela} WHERE ${colunaId} = ?`, [id]);
+    return res.redirect(caminho);
+  } catch (erro) {
+    if (
+      erro.code === 'ER_ROW_IS_REFERENCED_2' ||
+      erro.code === 'ER_ROW_IS_REFERENCED'
+    ) {
+      return paginaErro(res, motivo, 409);
+    }
+
+    throw erro;
+  }
 }
 
 app.get('/', (req, res) => {
@@ -192,6 +208,17 @@ app.put('/clientes/:id', rotaAsync(async (req, res) => {
   res.redirect('/clientes');
 }));
 
+app.delete('/clientes/:id', rotaAsync(async (req, res) => {
+  await excluirRegistro(
+    res,
+    'clientes',
+    'id_cliente',
+    req.params.id,
+    '/clientes',
+    'Não é possível excluir este cliente porque há projetos vinculados a ele.'
+  );
+}));
+
 async function mostrarProjetos(req, res, erro = '') {
   const [projetos] = await db.query(
     `SELECT projetos.id_projeto, projetos.descricao, projetos.id_cliente,
@@ -267,6 +294,17 @@ app.put('/projetos/:id', rotaAsync(async (req, res) => {
   );
 
   res.redirect('/projetos');
+}));
+
+app.delete('/projetos/:id', rotaAsync(async (req, res) => {
+  await excluirRegistro(
+    res,
+    'projetos',
+    'id_projeto',
+    req.params.id,
+    '/projetos',
+    'Não é possível excluir este projeto porque há sessões vinculadas a ele.'
+  );
 }));
 
 async function mostrarSessoes(req, res, erro = '') {
@@ -362,6 +400,15 @@ app.put('/sessoes/:id', rotaAsync(async (req, res) => {
      SET data_hora = ?, id_projeto = ?
      WHERE id_sessao = ?`,
     [data_hora.replace('T', ' '), id_projeto, req.params.id]
+  );
+
+  res.redirect('/sessoes');
+}));
+
+app.delete('/sessoes/:id', rotaAsync(async (req, res) => {
+  await db.query(
+    'DELETE FROM sessoes WHERE id_sessao = ?',
+    [req.params.id]
   );
 
   res.redirect('/sessoes');

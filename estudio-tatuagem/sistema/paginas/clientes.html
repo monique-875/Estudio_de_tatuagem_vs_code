@@ -2,25 +2,69 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Clientes — Estúdio de Tatuagem</title>
 </head>
 <body>
   <h1>Clientes</h1>
 
-  <form>
+  <form action="/clientes" method="GET">
     <label for="busca">Buscar por nome, telefone ou e-mail:</label>
-    <input id="busca" name="busca" type="search">
+    <input id="busca" name="busca" type="search" value="{{busca}}">
     <button type="submit">Buscar</button>
   </form>
 
-  <h2>Cadastrar cliente</h2>
-  <form>
-    <label>Nome: <input name="nome" required></label><br><br>
-    <label>CPF: <input name="cpf" required></label><br><br>
-    <label>Telefone: <input name="telefone" required></label><br><br>
-    <label>E-mail: <input name="email" type="email" required></label><br><br>
-    <button type="submit">Salvar cliente</button>
+  <h2>{{#editando}}Editar cliente{{/editando}}{{^editando}}Cadastrar cliente{{/editando}}</h2>
+  <form action="{{acao}}" method="POST">
+    {{#editando}}<input type="hidden" name="_method" value="PUT">{{/editando}}
+    <label for="nome">Nome:</label>
+    <input id="nome" name="nome" value="{{form.nome}}" required>
+    <br><br>
+    <label for="cpf">CPF:</label>
+    <input id="cpf" name="cpf" value="{{form.cpf}}" required>
+    <br><br>
+    <label for="telefone">Telefone:</label>
+    <input id="telefone" name="telefone" value="{{form.telefone}}" required>
+    <br><br>
+    <label for="email">E-mail:</label>
+    <input id="email" name="email" type="email" value="{{form.email}}" required>
+    <br><br>
+    <button type="submit">{{#editando}}Atualizar cliente{{/editando}}{{^editando}}Salvar cliente{{/editando}}</button>
+    {{#editando}}<a href="/clientes">Cancelar</a>{{/editando}}
   </form>
+
+  <h2>Clientes cadastrados</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>CPF</th>
+        <th>Telefone</th>
+        <th>E-mail</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#clientes}}
+        <tr>
+          <td>{{nome}}</td>
+          <td>{{cpf}}</td>
+          <td>{{telefone}}</td>
+          <td>{{email}}</td>
+          <td>
+            <a href="/clientes?editar={{id_cliente}}">Editar</a>
+            <form action="/clientes/{{id_cliente}}" method="POST">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit">Excluir</button>
+            </form>
+          </td>
+        </tr>
+      {{/clientes}}
+      {{^clientes}}
+        <tr><td colspan="5">Nenhum cliente encontrado.</td></tr>
+      {{/clientes}}
+    </tbody>
+  </table>
 
   <p><a href="/principal">Voltar ao painel</a></p>
 </body>

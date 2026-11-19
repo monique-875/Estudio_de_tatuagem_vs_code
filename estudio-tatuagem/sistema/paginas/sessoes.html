@@ -8,17 +8,57 @@
 <body>
   <h1>Sessões agendadas</h1>
 
-  <p>As sessões serão exibidas por data, com os dados do cliente e do projeto.</p>
 
-  <form>
+  {{#erro}}<p role="alert">{{erro}}</p>{{/erro}}
+
+  <h2>{{#editando}}Editar sessão{{/editando}}{{^editando}}Agendar sessão{{/editando}}</h2>
+  <form action="{{acao}}" method="POST">
+    {{#editando}}<input type="hidden" name="_method" value="PUT">{{/editando}}
     <label for="data_hora">Data e horário da sessão:</label>
-    <input id="data_hora" name="data_hora" type="datetime-local" required>
-
-    <label for="id_projeto">ID do projeto:</label>
-    <input id="id_projeto" name="id_projeto" type="number" min="1" required>
-
-    <button type="submit">Agendar sessão</button>
+    <input id="data_hora" name="data_hora" type="datetime-local" value="{{form.data_input}}" required>
+    <br><br>
+    <label for="id_projeto">Projeto:</label>
+    <select id="id_projeto" name="id_projeto" required>
+      <option value="">Selecione um projeto</option>
+      {{#projetos}}
+        <option value="{{id_projeto}}" {{selecionado}}>{{cliente_nome}} — {{descricao}}</option>
+      {{/projetos}}
+    </select>
+    <br><br>
+    <button type="submit">{{#editando}}Atualizar sessão{{/editando}}{{^editando}}Agendar sessão{{/editando}}</button>
+    {{#editando}}<a href="/sessoes">Cancelar</a>{{/editando}}
   </form>
+
+  <h2>Sessões agendadas</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Data e horário</th>
+        <th>Cliente</th>
+        <th>Projeto</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#sessoes}}
+        <tr>
+          <td>{{data_exibicao}}</td>
+          <td>{{cliente_nome}}</td>
+          <td>{{projeto_descricao}}</td>
+          <td>
+            <a href="/sessoes?editar={{id_sessao}}">Editar</a>
+            <form action="/sessoes/{{id_sessao}}" method="POST">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit">Excluir</button>
+            </form>
+          </td>
+        </tr>
+      {{/sessoes}}
+      {{^sessoes}}
+        <tr><td colspan="4">Nenhuma sessão agendada.</td></tr>
+      {{/sessoes}}
+    </tbody>
+  </table>
 
   <p><a href="/principal">Voltar ao painel</a></p>
 </body>

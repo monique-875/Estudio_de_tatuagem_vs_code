@@ -2,22 +2,61 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Projetos — Estúdio de Tatuagem</title>
 </head>
 <body>
   <h1>Projetos de tatuagem</h1>
 
-  <form>
-    <label>Descrição do projeto:<br>
-      <textarea name="descricao" required></textarea>
-    </label>
+  {{#erro}}<p role="alert">{{erro}}</p>{{/erro}}
+
+  <h2>{{#editando}}Editar projeto{{/editando}}{{^editando}}Cadastrar projeto{{/editando}}</h2>
+  <form action="{{acao}}" method="POST">
+    {{#editando}}<input type="hidden" name="_method" value="PUT">{{/editando}}
+    <label for="descricao">Descrição do projeto:</label>
+    <br>
+    <textarea id="descricao" name="descricao" required>{{form.descricao}}</textarea>
     <br><br>
-    <label>ID do cliente:
-      <input name="id_cliente" type="number" min="1" required>
-    </label>
+    <label for="id_cliente">Cliente:</label>
+    <select id="id_cliente" name="id_cliente" required>
+      <option value="">Selecione um cliente</option>
+      {{#clientes}}
+        <option value="{{id_cliente}}" {{selecionado}}>{{nome}}</option>
+      {{/clientes}}
+    </select>
     <br><br>
-    <button type="submit">Salvar projeto</button>
+    <button type="submit">{{#editando}}Atualizar projeto{{/editando}}{{^editando}}Salvar projeto{{/editando}}</button>
+    {{#editando}}<a href="/projetos">Cancelar</a>{{/editando}}
   </form>
+
+  <h2>Projetos cadastrados</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Descrição</th>
+        <th>Cliente</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#projetos}}
+        <tr>
+          <td>{{descricao}}</td>
+          <td>{{cliente_nome}}</td>
+          <td>
+            <a href="/projetos?editar={{id_projeto}}">Editar</a>
+            <form action="/projetos/{{id_projeto}}" method="POST">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit">Excluir</button>
+            </form>
+          </td>
+        </tr>
+      {{/projetos}}
+      {{^projetos}}
+        <tr><td colspan="3">Nenhum projeto cadastrado.</td></tr>
+      {{/projetos}}
+    </tbody>
+  </table>
 
   <p><a href="/principal">Voltar ao painel</a></p>
 </body>
