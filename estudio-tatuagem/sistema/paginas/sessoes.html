@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sessões — Estúdio de Tatuagem</title>
+</head>
+<body>
+  <h1>Sessões agendadas</h1>
+
+  <p>As sessões serão exibidas por data, com os dados do cliente e do projeto.</p>
+
+  <form>
+    <label for="data_hora">Data e horário da sessão:</label>
+    <input id="data_hora" name="data_hora" type="datetime-local" required>
+
+    <label for="id_projeto">ID do projeto:</label>
+    <input id="id_projeto" name="id_projeto" type="number" min="1" required>
+
+    <button type="submit">Agendar sessão</button>
+  </form>
+
+  <p><a href="/principal">Voltar ao painel</a></p>
+</body>
+</html>
