@@ -2,11 +2,13 @@
   "name": "estudio-tatuagem",
   "version": "1.0.0",
   "description": "",
-  "main": "backend/src/app.js",
+  "main": "app.js",
+  "packageManager": "npm@10.9.9",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node backend/src/app.js",
-    "dev": "node backend/src/app.js"
+    "test": "node --check app.js && node --check gerar-script.js",
+    "start": "node app.js",
+    "dev": "node --watch app.js",
+    "gerar-script": "node gerar-script.js"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +21,7 @@
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
     "mustache": "^4.2.0",
-    "mysql2": "^3.24.6"
+    "mysql2": "^3.24.6",
+    "node-cron": "^4.2.1"
   }
 }

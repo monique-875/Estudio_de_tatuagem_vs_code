@@ -7,13 +7,14 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
 const Mustache = require('mustache');
+const cron = require('node-cron');
 
 require('dotenv').config({
-  path: path.resolve(__dirname, '..', '..', '.env'),
+  path: path.resolve(__dirname, '..', '.env'),
 });
 
 const app = express();
-const paginas = path.join(__dirname, 'paginas');
+const paginas = path.join(__dirname, 'sistema', 'paginas');
 
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -28,6 +29,7 @@ app.use((req, res, next) => {
 
 const db = mysql.createPool({
   host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
@@ -77,6 +79,18 @@ function camposObrigatorios(...valores) {
   return valores.every((valor) => String(valor || '').trim());
 }
 
+function validarDataHora(valor) {
+  const partes = String(valor || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!partes) return false;
+  const [, ano, mes, dia, hora, minuto] = partes.map(Number);
+  const data = new Date(ano, mes - 1, dia, hora, minuto);
+  return data.getFullYear() === ano
+    && data.getMonth() === mes - 1
+    && data.getDate() === dia
+    && data.getHours() === hora
+    && data.getMinutes() === minuto;
+}
+
 async function excluirRegistro(res, tabela, colunaId, id, caminho, motivo) {
   try {
     await db.query(`DELETE FROM ${tabela} WHERE ${colunaId} = ?`, [id]);
@@ -95,6 +109,8 @@ async function excluirRegistro(res, tabela, colunaId, id, caminho, motivo) {
 app.get('/', (req, res) => {
   res.send(mostrar('login'));
 });
+
+app.get('/health', (req, res) => res.status(200).send('ok'));
 
 app.post('/login', rotaAsync(async (req, res) => {
   const { email, senha } = req.body;
@@ -145,19 +161,35 @@ app.use((req, res, next) => {
   }
 });
 
-app.get('/principal', (req, res) => {
-  res.send(mostrar('principal', { nome: req.usuario.nome }));
-});
+app.get('/principal', rotaAsync(async (req, res) => {
+  const [sessoesHoje] = await db.query(
+    `SELECT DATE_FORMAT(sessoes.data_hora, '%d/%m/%Y %H:%i') AS data_br,
+            projetos.descricao AS projeto_descricao,
+            clientes.nome AS cliente_nome
+     FROM sessoes
+     JOIN projetos ON projetos.id_projeto = sessoes.id_projeto
+     JOIN clientes ON clientes.id_cliente = projetos.id_cliente
+     WHERE DATE(sessoes.data_hora) = CURDATE()
+     ORDER BY sessoes.data_hora`
+  );
+  res.send(mostrar('principal', {
+    nome: req.usuario.nome,
+    sessoesHoje,
+    temSessoesHoje: sessoesHoje.length > 0,
+  }));
+}));
 
 app.get('/clientes', rotaAsync(async (req, res) => {
   const busca = String(req.query.busca || '');
   const padrao = `%${busca}%`;
+  const cpfBusca = busca.replace(/\D/g, '');
+  const cpfCifrado = cpfBusca.length === 11 ? criptografar(cpfBusca) : null;
   const [lista] = await db.query(
     `SELECT id_cliente, nome, cpf, telefone, email
      FROM clientes
-     WHERE nome LIKE ? OR telefone LIKE ? OR email LIKE ?
+     WHERE nome LIKE ? OR telefone LIKE ? OR email LIKE ? OR cpf = ?
      ORDER BY nome`,
-    [padrao, padrao, padrao]
+    [padrao, padrao, padrao, cpfCifrado]
   );
 
   const clientes = lista.map((cliente) => {
@@ -391,11 +423,11 @@ app.get('/sessoes', rotaAsync(async (req, res) => {
 
 app.post('/sessoes', rotaAsync(async (req, res) => {
   const { data_hora, id_projeto } = req.body;
-  if (!camposObrigatorios(data_hora, id_projeto)) {
+  if (!camposObrigatorios(data_hora, id_projeto) || !validarDataHora(data_hora)) {
     return mostrarSessoes(
       req,
       res,
-      'Informe a data, o horário e o projeto.',
+      'Informe uma data e hora válidas e selecione um projeto.',
       req.body
     );
   }
@@ -409,11 +441,11 @@ app.post('/sessoes', rotaAsync(async (req, res) => {
 
 app.put('/sessoes/:id', rotaAsync(async (req, res) => {
   const { data_hora, id_projeto } = req.body;
-  if (!camposObrigatorios(data_hora, id_projeto)) {
+  if (!camposObrigatorios(data_hora, id_projeto) || !validarDataHora(data_hora)) {
     return mostrarSessoes(
       req,
       res,
-      'Informe a data, o horário e o projeto.',
+      'Informe uma data e hora válidas e selecione um projeto.',
       req.body,
       req.params.id
     );
@@ -459,6 +491,28 @@ app.use((erro, req, res, next) => {
 
   paginaErro(res, 'Ocorreu um erro ao processar a solicitação.');
 });
+
+cron.schedule('0 8 * * *', async () => {
+  try {
+    const [sessoes] = await db.query(
+      `SELECT DATE_FORMAT(sessoes.data_hora, '%H:%i') AS hora,
+              projetos.descricao AS projeto_descricao,
+              clientes.nome AS cliente_nome
+       FROM sessoes
+       JOIN projetos ON projetos.id_projeto = sessoes.id_projeto
+       JOIN clientes ON clientes.id_cliente = projetos.id_cliente
+       WHERE DATE(sessoes.data_hora) = CURDATE()
+       ORDER BY sessoes.data_hora`
+    );
+    console.log(`\nALERTA MATINAL — ${sessoes.length} sessão(ões) para hoje:`);
+    if (sessoes.length === 0) console.log('Nenhuma sessão agendada para hoje.');
+    for (const sessao of sessoes) {
+      console.log(`${sessao.hora} — ${sessao.cliente_nome}: ${sessao.projeto_descricao}`);
+    }
+  } catch (erro) {
+    console.error('Não foi possível carregar o alerta matinal:', erro.message);
+  }
+}, { timezone: 'America/Sao_Paulo' });
 
 const porta = process.env.PORT || 3000;
 app.listen(porta, () => {
