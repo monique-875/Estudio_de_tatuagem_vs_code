@@ -14,6 +14,8 @@
     <button type="submit">Buscar</button>
   </form>
 
+  {{#erro}}<p role="alert">{{erro}}</p>{{/erro}}
+
   <h2>{{#editando}}Editar cliente{{/editando}}{{^editando}}Cadastrar cliente{{/editando}}</h2>
   <form action="{{acao}}" method="POST">
     {{#editando}}<input type="hidden" name="_method" value="PUT">{{/editando}}

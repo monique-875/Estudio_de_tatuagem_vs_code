@@ -2,11 +2,11 @@
   "name": "estudio-tatuagem",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "backend/src/app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node sistema/app.js",
-    "dev": "node sistema/app.js"
+    "start": "node backend/src/app.js",
+    "dev": "node backend/src/app.js"
   },
   "keywords": [],
   "author": "",

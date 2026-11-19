@@ -70,6 +70,6 @@ INSERT INTO sessoes (id_sessao, data_hora, id_projeto) VALUES
   (2, '2026-12-02 14:30:00', 2),
   (3, '2026-12-03 10:00:00', 3);
 
-UPDATE usuarios
+UPDATE estudio_tatuagem.usuarios
 SET senha = '$2b$10$EPjW1CRfYchIoXpJyjzxnun3W90glwyokugjLEK6AeoC/ShBoqAX2'
 WHERE email IN ('admin@tattoo.com', 'marina@tattoo.com', 'rafael@tattoo.com');

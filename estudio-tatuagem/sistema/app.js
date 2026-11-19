@@ -9,7 +9,7 @@ const cookieParser = require('cookie-parser');
 const Mustache = require('mustache');
 
 require('dotenv').config({
-  path: path.join(__dirname, '..', '..', '.env'),
+  path: path.resolve(__dirname, '..', '..', '.env'),
 });
 
 const app = express();
@@ -19,12 +19,10 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 app.use((req, res, next) => {
-  const metodo = String(req.body?._method || '').toUpperCase();
-
+  const metodo = String((req.body && req.body._method) || '').toUpperCase();
   if (req.method === 'POST' && ['PUT', 'DELETE'].includes(metodo)) {
     req.method = metodo;
   }
-
   next();
 });
 
@@ -49,7 +47,6 @@ function criptografar(texto) {
     process.env.CRIPTO_CHAVE,
     process.env.CRIPTO_IV
   );
-
   return cifra.update(String(texto), 'utf8', 'hex') + cifra.final('hex');
 }
 
@@ -59,7 +56,6 @@ function descriptografar(texto) {
     process.env.CRIPTO_CHAVE,
     process.env.CRIPTO_IV
   );
-
   return decifra.update(texto, 'hex', 'utf8') + decifra.final('utf8');
 }
 
@@ -70,9 +66,15 @@ function rotaAsync(funcao) {
 }
 
 function paginaErro(res, mensagem, status = 500) {
-  return res.status(status).send(
-    `<p>${mensagem}</p><p><a href="/principal">Voltar</a></p>`
+  const html = Mustache.render(
+    '<!DOCTYPE html><html lang="pt-BR"><meta charset="UTF-8"><title>Erro</title><body><p>{{mensagem}}</p><p><a href="/">Voltar</a></p></body></html>',
+    { mensagem }
   );
+  return res.status(status).send(html);
+}
+
+function camposObrigatorios(...valores) {
+  return valores.every((valor) => String(valor || '').trim());
 }
 
 async function excluirRegistro(res, tabela, colunaId, id, caminho, motivo) {
@@ -86,7 +88,6 @@ async function excluirRegistro(res, tabela, colunaId, id, caminho, motivo) {
     ) {
       return paginaErro(res, motivo, 409);
     }
-
     throw erro;
   }
 }
@@ -98,11 +99,16 @@ app.get('/', (req, res) => {
 app.post('/login', rotaAsync(async (req, res) => {
   const { email, senha } = req.body;
 
+  if (!camposObrigatorios(email, senha)) {
+    return res.status(400).send(
+      mostrar('login', { erro: 'Informe o e-mail e a senha.' })
+    );
+  }
+
   const [usuarios] = await db.query(
     'SELECT id_usuario, nome, email, senha FROM usuarios WHERE email = ?',
     [email]
   );
-
   const usuario = usuarios[0];
 
   if (!usuario || !(await bcrypt.compare(senha, usuario.senha))) {
@@ -112,10 +118,7 @@ app.post('/login', rotaAsync(async (req, res) => {
   }
 
   const token = jwt.sign(
-    {
-      id_usuario: usuario.id_usuario,
-      nome: usuario.nome,
-    },
+    { id_usuario: usuario.id_usuario, nome: usuario.nome },
     process.env.JWT_SECRET,
     { expiresIn: '1h' }
   );
@@ -125,7 +128,6 @@ app.post('/login', rotaAsync(async (req, res) => {
     sameSite: 'lax',
     maxAge: 60 * 60 * 1000,
   });
-
   res.redirect('/principal');
 }));
 
@@ -149,25 +151,21 @@ app.get('/principal', (req, res) => {
 
 app.get('/clientes', rotaAsync(async (req, res) => {
   const busca = String(req.query.busca || '');
-
+  const padrao = `%${busca}%`;
   const [lista] = await db.query(
     `SELECT id_cliente, nome, cpf, telefone, email
      FROM clientes
      WHERE nome LIKE ? OR telefone LIKE ? OR email LIKE ?
      ORDER BY nome`,
-    [`%${busca}%`, `%${busca}%`, `%${busca}%`]
+    [padrao, padrao, padrao]
   );
 
   const clientes = lista.map((cliente) => {
-    let cpf = '';
-
     try {
-      cpf = descriptografar(cliente.cpf);
+      return { ...cliente, cpf: descriptografar(cliente.cpf) };
     } catch (erro) {
-      cpf = 'Não foi possível descriptografar';
+      return { ...cliente, cpf: 'Não foi possível descriptografar' };
     }
-
-    return { ...cliente, cpf };
   });
 
   const editar = clientes.find(
@@ -185,18 +183,39 @@ app.get('/clientes', rotaAsync(async (req, res) => {
 
 app.post('/clientes', rotaAsync(async (req, res) => {
   const { nome, cpf, telefone, email } = req.body;
+  if (!camposObrigatorios(nome, cpf, telefone, email)) {
+    return res.status(400).send(mostrar('clientes', {
+      busca: '',
+      clientes: [],
+      erro: 'Preencha todos os dados do cliente.',
+      editando: false,
+      acao: '/clientes',
+      form: req.body,
+    }));
+  }
 
   await db.query(
     `INSERT INTO clientes (nome, cpf, telefone, email)
      VALUES (?, ?, ?, ?)`,
     [nome, criptografar(cpf), telefone, email]
   );
-
   res.redirect('/clientes');
 }));
 
 app.put('/clientes/:id', rotaAsync(async (req, res) => {
   const { nome, cpf, telefone, email } = req.body;
+  if (!camposObrigatorios(nome, cpf, telefone, email)) {
+    return res.status(400).send(
+      mostrar('clientes', {
+        busca: '',
+        clientes: [],
+        erro: 'Preencha todos os dados do cliente.',
+        editando: true,
+        acao: `/clientes/${req.params.id}`,
+        form: req.body,
+      })
+    );
+  }
 
   await db.query(
     `UPDATE clientes
@@ -204,7 +223,6 @@ app.put('/clientes/:id', rotaAsync(async (req, res) => {
      WHERE id_cliente = ?`,
     [nome, criptografar(cpf), telefone, email, req.params.id]
   );
-
   res.redirect('/clientes');
 }));
 
@@ -219,7 +237,7 @@ app.delete('/clientes/:id', rotaAsync(async (req, res) => {
   );
 }));
 
-async function mostrarProjetos(req, res, erro = '') {
+async function mostrarProjetos(req, res, erro = '', dadosFormulario = null, idEdicao = '') {
   const [projetos] = await db.query(
     `SELECT projetos.id_projeto, projetos.descricao, projetos.id_cliente,
             clientes.nome AS cliente_nome
@@ -227,19 +245,23 @@ async function mostrarProjetos(req, res, erro = '') {
      JOIN clientes ON clientes.id_cliente = projetos.id_cliente
      ORDER BY projetos.id_projeto`
   );
-
   const [listaClientes] = await db.query(
     'SELECT id_cliente, nome FROM clientes ORDER BY nome'
   );
 
+  const idSelecionado = idEdicao || req.query.editar || '';
   const editar = projetos.find(
-    (projeto) => String(projeto.id_projeto) === String(req.query.editar || '')
+    (projeto) => String(projeto.id_projeto) === String(idSelecionado)
   );
-
+  const form = dadosFormulario
+    ? { ...(editar || {}), ...dadosFormulario }
+    : editar || {};
   const clientes = listaClientes.map((cliente) => ({
     ...cliente,
     selecionado:
-      editar && cliente.id_cliente === editar.id_cliente ? 'selected' : '',
+      String(cliente.id_cliente) === String(form.id_cliente || '')
+        ? 'selected'
+        : '',
   }));
 
   res.send(mostrar('projetos', {
@@ -248,7 +270,7 @@ async function mostrarProjetos(req, res, erro = '') {
     erro,
     editando: Boolean(editar),
     acao: editar ? `/projetos/${editar.id_projeto}` : '/projetos',
-    form: editar || {},
+    form,
   }));
 }
 
@@ -258,12 +280,12 @@ app.get('/projetos', rotaAsync(async (req, res) => {
 
 app.post('/projetos', rotaAsync(async (req, res) => {
   const { descricao, id_cliente } = req.body;
-
-  if (!descricao || !id_cliente) {
+  if (!camposObrigatorios(descricao, id_cliente)) {
     return mostrarProjetos(
       req,
       res,
-      'Informe a descrição e selecione um cliente.'
+      'Informe a descrição e selecione um cliente.',
+      req.body
     );
   }
 
@@ -271,18 +293,18 @@ app.post('/projetos', rotaAsync(async (req, res) => {
     'INSERT INTO projetos (descricao, id_cliente) VALUES (?, ?)',
     [descricao, id_cliente]
   );
-
   res.redirect('/projetos');
 }));
 
 app.put('/projetos/:id', rotaAsync(async (req, res) => {
   const { descricao, id_cliente } = req.body;
-
-  if (!descricao || !id_cliente) {
+  if (!camposObrigatorios(descricao, id_cliente)) {
     return mostrarProjetos(
       req,
       res,
-      'Informe a descrição e selecione um cliente.'
+      'Informe a descrição e selecione um cliente.',
+      req.body,
+      req.params.id
     );
   }
 
@@ -292,7 +314,6 @@ app.put('/projetos/:id', rotaAsync(async (req, res) => {
      WHERE id_projeto = ?`,
     [descricao, id_cliente, req.params.id]
   );
-
   res.redirect('/projetos');
 }));
 
@@ -307,7 +328,7 @@ app.delete('/projetos/:id', rotaAsync(async (req, res) => {
   );
 }));
 
-async function mostrarSessoes(req, res, erro = '') {
+async function mostrarSessoes(req, res, erro = '', dadosFormulario = null, idEdicao = '') {
   const [sessoes] = await db.query(
     `SELECT sessoes.id_sessao, sessoes.data_hora, sessoes.id_projeto,
             projetos.descricao AS projeto_descricao,
@@ -317,7 +338,6 @@ async function mostrarSessoes(req, res, erro = '') {
      JOIN clientes ON clientes.id_cliente = projetos.id_cliente
      ORDER BY sessoes.data_hora`
   );
-
   const [listaProjetos] = await db.query(
     `SELECT projetos.id_projeto, projetos.descricao,
             clientes.nome AS cliente_nome
@@ -326,38 +346,42 @@ async function mostrarSessoes(req, res, erro = '') {
      ORDER BY clientes.nome, projetos.id_projeto`
   );
 
-  const sessaoEmEdicao = sessoes.find(
-    (sessao) => String(sessao.id_sessao) === String(req.query.editar || '')
+  const idSelecionado = idEdicao || req.query.editar || '';
+  const sessaoEditando = sessoes.find(
+    (sessao) => String(sessao.id_sessao) === String(idSelecionado)
   );
-
-  const listaFormatada = sessoes.map((sessao) => ({
-    ...sessao,
-    data_exibicao: sessao.data_hora.replace('T', ' '),
-    data_input: sessao.data_hora.slice(0, 16).replace(' ', 'T'),
-  }));
+  const form = dadosFormulario
+    ? {
+        ...(sessaoEditando || {}),
+        ...dadosFormulario,
+        data_input: String(dadosFormulario.data_hora || '').slice(0, 16).replace(' ', 'T'),
+      }
+    : sessaoEditando
+      ? {
+          ...sessaoEditando,
+          data_input: String(sessaoEditando.data_hora).slice(0, 16).replace(' ', 'T'),
+        }
+      : {};
 
   const projetos = listaProjetos.map((projeto) => ({
     ...projeto,
     selecionado:
-      sessaoEmEdicao && projeto.id_projeto === sessaoEmEdicao.id_projeto
+      String(projeto.id_projeto) === String(form.id_projeto || '')
         ? 'selected'
         : '',
   }));
+  const sessoesFormatadas = sessoes.map((sessao) => ({
+    ...sessao,
+    data_exibicao: String(sessao.data_hora).replace('T', ' '),
+  }));
 
   res.send(mostrar('sessoes', {
-    sessoes: listaFormatada,
+    sessoes: sessoesFormatadas,
     projetos,
     erro,
-    editando: Boolean(sessaoEmEdicao),
-    acao: sessaoEmEdicao
-      ? `/sessoes/${sessaoEmEdicao.id_sessao}`
-      : '/sessoes',
-    form: sessaoEmEdicao
-      ? {
-          ...sessaoEmEdicao,
-          data_input: sessaoEmEdicao.data_hora.slice(0, 16).replace(' ', 'T'),
-        }
-      : {},
+    editando: Boolean(sessaoEditando),
+    acao: sessaoEditando ? `/sessoes/${sessaoEditando.id_sessao}` : '/sessoes',
+    form,
   }));
 }
 
@@ -367,12 +391,12 @@ app.get('/sessoes', rotaAsync(async (req, res) => {
 
 app.post('/sessoes', rotaAsync(async (req, res) => {
   const { data_hora, id_projeto } = req.body;
-
-  if (!data_hora || !id_projeto) {
+  if (!camposObrigatorios(data_hora, id_projeto)) {
     return mostrarSessoes(
       req,
       res,
-      'Informe a data, o horário e o projeto.'
+      'Informe a data, o horário e o projeto.',
+      req.body
     );
   }
 
@@ -380,18 +404,18 @@ app.post('/sessoes', rotaAsync(async (req, res) => {
     'INSERT INTO sessoes (data_hora, id_projeto) VALUES (?, ?)',
     [data_hora.replace('T', ' '), id_projeto]
   );
-
   res.redirect('/sessoes');
 }));
 
 app.put('/sessoes/:id', rotaAsync(async (req, res) => {
   const { data_hora, id_projeto } = req.body;
-
-  if (!data_hora || !id_projeto) {
+  if (!camposObrigatorios(data_hora, id_projeto)) {
     return mostrarSessoes(
       req,
       res,
-      'Informe a data, o horário e o projeto.'
+      'Informe a data, o horário e o projeto.',
+      req.body,
+      req.params.id
     );
   }
 
@@ -401,38 +425,48 @@ app.put('/sessoes/:id', rotaAsync(async (req, res) => {
      WHERE id_sessao = ?`,
     [data_hora.replace('T', ' '), id_projeto, req.params.id]
   );
-
   res.redirect('/sessoes');
 }));
 
 app.delete('/sessoes/:id', rotaAsync(async (req, res) => {
-  await db.query(
-    'DELETE FROM sessoes WHERE id_sessao = ?',
-    [req.params.id]
-  );
-
+  await db.query('DELETE FROM sessoes WHERE id_sessao = ?', [req.params.id]);
   res.redirect('/sessoes');
 }));
 
 app.use((erro, req, res, next) => {
   console.error(erro);
+  if (res.headersSent) {
+    return next(erro);
+  }
+
+  if (erro.code === 'ER_ACCESS_DENIED_ERROR' || erro.code === 'ECONNREFUSED') {
+    return paginaErro(
+      res,
+      'Não foi possível acessar o MySQL. Confira o serviço e as credenciais.',
+      503
+    );
+  }
+  if (
+    erro.code === 'ER_ROW_IS_REFERENCED_2' ||
+    erro.code === 'ER_ROW_IS_REFERENCED'
+  ) {
+    return paginaErro(
+      res,
+      'Não é possível excluir este registro porque ele possui vínculos.',
+      409
+    );
+  }
+
   paginaErro(res, 'Ocorreu um erro ao processar a solicitação.');
 });
 
-async function iniciar() {
-  try {
-    await db.query('SELECT 1');
-
-    const porta = process.env.PORT || 3000;
-
-    app.listen(porta, () => {
-      console.log(`Estúdio rodando em http://localhost:${porta}` );
-      console.log('Conexão com o banco estudio_tatuagem realizada.');
+const porta = process.env.PORT || 3000;
+app.listen(porta, () => {
+  console.log(`Estúdio rodando em http://localhost:${porta}`);
+  db.query('SELECT 1')
+    .then(() => console.log('Conexão com o MySQL realizada.'))
+    .catch((erro) => {
+      console.error('Servidor iniciado, mas não foi possível conectar ao MySQL.');
+      console.error(erro.message);
     });
-  } catch (erro) {
-    console.error('Não foi possível conectar ao MySQL.');
-    console.error(erro.message);
-  }
-}
-
-iniciar()
+});

@@ -2,13 +2,12 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sessões — Estúdio de Tatuagem</title>
 </head>
 <body>
   <h1>Sessões agendadas</h1>
-
-
+  <p>As sessões serão exibidas por data, com os dados do cliente e do projeto.</p>
   {{#erro}}<p role="alert">{{erro}}</p>{{/erro}}
 
   <h2>{{#editando}}Editar sessão{{/editando}}{{^editando}}Agendar sessão{{/editando}}</h2>
